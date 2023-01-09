@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package gophkeeper;
+
+option go_package = "pkg/grpc/gophkeeper";
+
+service Storage {
+  rpc List(ListRequest) returns (stream Resource);
+  rpc Add(stream ResourceOperationData) returns (ResourceOperationResponse);
+  rpc Get(Resource) returns (stream ResourceOperationData);
+  rpc Delete(Resource) returns (ResourceOperationResponse);
+}
+
+enum ErrorCode {
+  ERROR_CODE_OK = 0;
+}
+
+message Resource {
+  optional string id = 1;
+  optional bytes data = 2;
+  optional bool is_deleted = 3;
+}
+
+message ListRequest {
+}
+
+message ResourceOperationData {
+  message ResourceMeta {
+    optional bytes salt = 1;
+    optional uint64 resource_byte_size = 2;
+  }
+  message DataChunk {
+    bytes data = 1;
+  }
+
+  oneof data {
+    ResourceMeta meta = 1;
+    DataChunk chunk = 2;
+  }
+}
+
+message ResourceOperationResponse {
+  oneof result {
+    int32 error_code = 1;
+    Resource resource = 2;
+  }
+}

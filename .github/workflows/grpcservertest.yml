@@ -1,0 +1,34 @@
+name: autotests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  servertest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '>=1.19.0'
+
+      - name: Build server binary
+        run: |
+          cd cmd/server
+          go build -o gophkeeper
+          cd ../..
+
+      - name: Lint
+        run: |
+          go vet ./...
+
+      - name: Test
+        run: |
+          go test -v ./...

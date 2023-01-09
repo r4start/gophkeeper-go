@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package gophkeeper;
+
+option go_package = "pkg/grpc/gophkeeper";
+
+service AuthorizationService {
+  rpc Register(AuthorizationRequest) returns (AuthorizationResponse);
+  rpc Authorize(AuthorizationRequest) returns (AuthorizationResponse);
+  rpc ResetPassword(PasswordResetRequest) returns (AuthorizationResponse);
+  rpc UpdateToken(UpdateTokenRequest) returns (AuthorizationResponse);
+}
+
+message AuthorizationRequest {
+  optional string login = 1;
+  optional string password = 2;
+  optional bytes salt = 3;
+}
+
+message AuthorizationResponse {
+  optional string token = 1;
+  optional string refresh_token = 2;
+  optional string user_id = 3;
+  optional bytes salt = 4;
+}
+
+message PasswordResetRequest {
+  string user_id = 1;
+  optional string login = 2;
+  optional string old_password = 3;
+  optional string new_password = 4;
+}
+
+message UpdateTokenRequest {
+  string user_id = 1;
+  optional string token = 2;
+  optional string refresh_token = 3;
+}
