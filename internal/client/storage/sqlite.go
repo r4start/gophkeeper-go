@@ -84,7 +84,9 @@ func (s *sqliteStorage) ListFiles(ctx context.Context) ([]FileData, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	files := make([]FileData, 0, 128)
 	for rows.Next() {
@@ -134,7 +136,9 @@ func (s *sqliteStorage) ListCards(ctx context.Context) ([]CardData, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	cards := make([]CardData, 0)
 	for rows.Next() {
@@ -173,7 +177,9 @@ func (s *sqliteStorage) ListCredentials(ctx context.Context) ([]CredentialData, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	result := make([]CredentialData, 0)
 	for rows.Next() {

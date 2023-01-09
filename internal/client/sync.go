@@ -235,7 +235,9 @@ func (s *Synchronizer) downloadResource(ctx context.Context, auth *UserAuthoriza
 	if err != nil {
 		return fmt.Errorf("failed to get resource %s: %w", id, err)
 	}
-	defer downloader.Close()
+	defer func() {
+		_ = downloader.Close()
+	}()
 
 	var (
 		salt     []byte
@@ -292,7 +294,9 @@ func (s *Synchronizer) downloadResource(ctx context.Context, auth *UserAuthoriza
 
 		wr, err := f.Write(dr.Data)
 		if err != nil || wr != len(dr.Data) {
-			os.Remove(destPath)
+			if e := os.Remove(destPath); e != nil {
+				err = multierror.Append(err, e)
+			}
 			return fmt.Errorf("failed to write into a file %s: resource %s %w", destPath, id, err)
 		}
 

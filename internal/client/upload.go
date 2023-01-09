@@ -262,7 +262,9 @@ func (u *Uploader) upload(
 	if err != nil {
 		return nil, nil, err
 	}
-	defer writer.Close()
+	defer func() {
+		_ = writer.Close()
+	}()
 
 	br := bytes.NewReader(msg)
 	buffer := make([]byte, 0, _bufferReadSize)
@@ -354,7 +356,9 @@ func copyFile(filePath, syncDirPath string) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	if _, err := f.Write(buffer); err != nil {
 		return nil, "", err

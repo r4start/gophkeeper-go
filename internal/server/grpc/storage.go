@@ -158,7 +158,9 @@ func (s *StorageService) Get(res *pb.Resource, stream pb.Storage_GetServer) erro
 	if err != nil {
 		return err
 	}
-	defer resource.Close()
+	defer func() {
+		_ = resource.Close()
+	}()
 
 	salt, err := resource.Salt()
 	if err != nil {

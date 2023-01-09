@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -131,19 +132,25 @@ func (d *dbStorage) Create(ctx context.Context, user *UserID, salt []byte) (Reso
 	lo := tx.LargeObjects()
 	oid, err := lo.Create(ctx, _emptyOID)
 	if err != nil {
-		tx.Rollback(ctx)
+		if e := tx.Rollback(ctx); e != nil {
+			err = multierror.Append(err, e)
+		}
 		return nil, err
 	}
 
 	addQuery := fmt.Sprintf(_addNewResource, user.String(), resourceId.String(), oid, hex.EncodeToString(salt))
 	if _, err := tx.Exec(ctx, addQuery); err != nil {
-		tx.Rollback(ctx)
+		if e := tx.Rollback(ctx); e != nil {
+			err = multierror.Append(err, e)
+		}
 		return nil, err
 	}
 
 	obj, err := lo.Open(ctx, oid, pgx.LargeObjectModeRead|pgx.LargeObjectModeWrite)
 	if err != nil {
-		tx.Rollback(ctx)
+		if e := tx.Rollback(ctx); e != nil {
+			err = multierror.Append(err, e)
+		}
 		return nil, err
 	}
 
@@ -167,7 +174,9 @@ func (d *dbStorage) Open(ctx context.Context, user *UserID, id *ResourceID) (Res
 		salt []byte
 	)
 	if err := tx.QueryRow(ctx, _getResource, id, user).Scan(&oid, &salt); err != nil {
-		tx.Rollback(ctx)
+		if e := tx.Rollback(ctx); e != nil {
+			err = multierror.Append(err, e)
+		}
 		return nil, err
 	}
 
