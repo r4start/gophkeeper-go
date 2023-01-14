@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -369,78 +368,41 @@ func (s *Synchronizer) downloadResource(ctx context.Context, auth *UserAuthoriza
 }
 
 func listLocalResources(ctx context.Context, storage storage.Storage) (map[string]resourcePair, error) {
-	var (
-		localResources = make(chan resourcePair)
-		errCh          = make(chan error)
-		exit           = make(chan any)
-		wg             sync.WaitGroup
-		err            error
-	)
-
-	wg.Add(3)
-
-	go func() {
-		defer wg.Done()
-		fs, err := storage.ListFiles(ctx)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		for _, e := range fs {
-			localResources <- resourcePair{
-				ID:   e.ID,
-				Type: ResourceTypeBinary,
-			}
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		cards, err := storage.ListCards(ctx)
-		if err != nil {
-			errCh <- err
-		}
-		for _, e := range cards {
-			localResources <- resourcePair{
-				ID:   e.ID,
-				Type: ResourceTypeCardCredentials,
-			}
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		creds, err := storage.ListCredentials(ctx)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		for _, e := range creds {
-			localResources <- resourcePair{
-				ID:   e.ID,
-				Type: ResourceTypeCredentials,
-			}
-		}
-	}()
-
-	go func() {
-		wg.Wait()
-		close(exit)
-	}()
-
 	local := make(map[string]resourcePair)
 
-outerloop:
-	for {
-		select {
-		case res := <-localResources:
-			local[res.ID] = res
-		case e := <-errCh:
-			err = multierror.Append(err, e)
-		case <-exit:
-			break outerloop
+	fs, err := storage.ListFiles(ctx)
+	if err != nil {
+		return local, err
+	}
+	for _, f := range fs {
+		local[f.ID] = resourcePair{
+			ID:   f.ID,
+			Type: ResourceTypeBinary,
 		}
 	}
+
+	cards, err := storage.ListCards(ctx)
+	if err != nil {
+		return local, err
+	}
+	for _, c := range cards {
+		local[c.ID] = resourcePair{
+			ID:   c.ID,
+			Type: ResourceTypeCardCredentials,
+		}
+	}
+
+	creds, err := storage.ListCredentials(ctx)
+	if err != nil {
+		return local, err
+	}
+	for _, c := range creds {
+		local[c.ID] = resourcePair{
+			ID:   c.ID,
+			Type: ResourceTypeCredentials,
+		}
+	}
+
 	return local, nil
 }
 
