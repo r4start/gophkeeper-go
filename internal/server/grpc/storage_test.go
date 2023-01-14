@@ -32,7 +32,7 @@ func authGenerator(id string) grpc_auth.AuthFunc {
 		auth := &app.AuthData{
 			ID: id,
 		}
-		return context.WithValue(ctx, userAuthKey, auth), nil
+		return context.WithValue(ctx, _userAuthKey, auth), nil
 	}
 }
 
@@ -135,7 +135,7 @@ func (mr *mockResource) Salt() ([]byte, error) {
 func TestStorageService_Add(t *testing.T) {
 	userID, err := uuid.NewRandom()
 	assert.NoError(t, err)
-	s, err := NewStorageService(newMockWhStorage())
+	s, err := NewStorageService(newMockWhStorage(), 1024)
 	assert.NoError(t, err)
 
 	reg := func(srv *grpc.Server) {
@@ -197,7 +197,7 @@ func TestStorageService_Add(t *testing.T) {
 func TestStorageService_Add_WrongStart(t *testing.T) {
 	userID, err := uuid.NewRandom()
 	assert.NoError(t, err)
-	s, err := NewStorageService(newMockWhStorage())
+	s, err := NewStorageService(newMockWhStorage(), 1024)
 	assert.NoError(t, err)
 
 	reg := func(srv *grpc.Server) {
@@ -239,7 +239,7 @@ func TestStorageService_Add_WrongStart(t *testing.T) {
 func TestStorageService_List(t *testing.T) {
 	userID, err := uuid.NewRandom()
 	assert.NoError(t, err)
-	s, err := NewStorageService(newMockWhStorage())
+	s, err := NewStorageService(newMockWhStorage(), 1024)
 	assert.NoError(t, err)
 
 	reg := func(srv *grpc.Server) {
@@ -323,7 +323,7 @@ func TestStorageService_Get(t *testing.T) {
 
 	userID, err := uuid.NewRandom()
 	assert.NoError(t, err)
-	s, err := NewStorageService(storage)
+	s, err := NewStorageService(storage, 1024)
 	assert.NoError(t, err)
 
 	reg := func(srv *grpc.Server) {
@@ -445,7 +445,7 @@ func TestStorageService_Delete(t *testing.T) {
 	storage := newMockWhStorage()
 	userID, err := uuid.NewRandom()
 	assert.NoError(t, err)
-	s, err := NewStorageService(storage)
+	s, err := NewStorageService(storage, 1024)
 	assert.NoError(t, err)
 
 	reg := func(srv *grpc.Server) {

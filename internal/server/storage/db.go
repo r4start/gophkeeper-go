@@ -20,8 +20,6 @@ var (
 )
 
 const (
-	_dbOperationTimeout = 250 * time.Millisecond
-
 	_emptyOID = uint32(0)
 
 	_addUser = `insert into users (id, login, key_salt, salt, secret) VALUES ('%s', '%s', '\x%s', '\x%s', '\x%s');`
@@ -36,22 +34,24 @@ const (
 )
 
 type dbStorage struct {
-	dbConn *pgxpool.Pool
+	dbConn           *pgxpool.Pool
+	operationTimeout time.Duration
 }
 
-func NewDatabaseUserService(ctx context.Context, dsn string) (*dbStorage, error) {
+func NewDatabaseUserService(ctx context.Context, dsn string, operationTimeout time.Duration) (*dbStorage, error) {
 	conn, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		return nil, err
 	}
 
 	return &dbStorage{
-		dbConn: conn,
+		dbConn:           conn,
+		operationTimeout: operationTimeout,
 	}, nil
 }
 
 func (d *dbStorage) Add(ctx context.Context, login string, keySalt, salt, secret []byte) (*UserID, error) {
-	c, cancel := context.WithTimeout(ctx, _dbOperationTimeout)
+	c, cancel := context.WithTimeout(ctx, d.operationTimeout)
 	defer cancel()
 
 	id, err := uuid.NewRandom()
@@ -78,7 +78,7 @@ func (d *dbStorage) Add(ctx context.Context, login string, keySalt, salt, secret
 }
 
 func (d *dbStorage) GetByLogin(ctx context.Context, login string) (*User, error) {
-	c, cancel := context.WithTimeout(ctx, _dbOperationTimeout)
+	c, cancel := context.WithTimeout(ctx, d.operationTimeout)
 	defer cancel()
 
 	var (
@@ -96,7 +96,7 @@ func (d *dbStorage) GetByLogin(ctx context.Context, login string) (*User, error)
 }
 
 func (d *dbStorage) GetByID(ctx context.Context, id string) (*User, error) {
-	c, cancel := context.WithTimeout(ctx, _dbOperationTimeout)
+	c, cancel := context.WithTimeout(ctx, d.operationTimeout)
 	defer cancel()
 
 	var (

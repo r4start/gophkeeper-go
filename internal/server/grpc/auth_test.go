@@ -6,8 +6,7 @@ import (
 	"net"
 	"sync"
 	"testing"
-
-	"go.uber.org/zap"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -117,9 +116,7 @@ func strPtr(s string) *string {
 func TestAuthService_Basic(t *testing.T) {
 	keySalt := make([]byte, 64)
 
-	l, err := zap.NewDevelopment()
-	assert.NoError(t, err)
-	s := NewAuthService(&mockAuth{users: new(sync.Map)}, l)
+	s := NewAuthService(&mockAuth{users: new(sync.Map)}, time.Second)
 	reg := func(srv *grpc.Server) {
 		pb.RegisterAuthorizationServiceServer(srv, s)
 	}

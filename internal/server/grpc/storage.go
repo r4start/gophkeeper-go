@@ -13,18 +13,15 @@ import (
 	pb "github.com/r4start/goph-keeper/pkg/grpc/proto"
 )
 
-const (
-	_sendBufferSize = 2 * 1024 * 1024
-)
-
 type StorageService struct {
 	pb.UnimplementedStorageServer
 
-	wh storage.Storage
+	wh             storage.Storage
+	sendBufferSize int
 }
 
-func NewStorageService(wh storage.Storage) (*StorageService, error) {
-	return &StorageService{wh: wh}, nil
+func NewStorageService(wh storage.Storage, sendBufferSize int) (*StorageService, error) {
+	return &StorageService{wh: wh, sendBufferSize: sendBufferSize}, nil
 }
 
 func (s *StorageService) Add(stream pb.Storage_AddServer) error {
@@ -33,7 +30,7 @@ func (s *StorageService) Add(stream pb.Storage_AddServer) error {
 		expectedSize = uint64(0)
 		readBytes    = uint64(0)
 		ctx          = stream.Context()
-		userAuth, ok = ctx.Value(userAuthKey).(*app.AuthData)
+		userAuth, ok = ctx.Value(_userAuthKey).(*app.AuthData)
 	)
 
 	if !ok || userAuth == nil {
@@ -102,7 +99,7 @@ func (s *StorageService) Add(stream pb.Storage_AddServer) error {
 func (s *StorageService) List(_ *pb.ListRequest, stream pb.Storage_ListServer) error {
 	var (
 		ctx          = stream.Context()
-		userAuth, ok = ctx.Value(userAuthKey).(*app.AuthData)
+		userAuth, ok = ctx.Value(_userAuthKey).(*app.AuthData)
 	)
 
 	if !ok || userAuth == nil {
@@ -143,7 +140,7 @@ func (s *StorageService) Get(res *pb.Resource, stream pb.Storage_GetServer) erro
 	}
 
 	ctx := stream.Context()
-	userAuth, ok := ctx.Value(userAuthKey).(*app.AuthData)
+	userAuth, ok := ctx.Value(_userAuthKey).(*app.AuthData)
 	if !ok || userAuth == nil {
 		return status.Error(codes.Unauthenticated, "auth token missed")
 	}
@@ -179,7 +176,7 @@ func (s *StorageService) Get(res *pb.Resource, stream pb.Storage_GetServer) erro
 	}
 
 	readSize := uint64(0)
-	buffer := make([]byte, _sendBufferSize)
+	buffer := make([]byte, s.sendBufferSize)
 	for {
 		readBytes, err := resource.Read(buffer)
 		if err == io.EOF {
@@ -235,7 +232,7 @@ func (s *StorageService) Delete(ctx context.Context, res *pb.Resource) (*pb.Reso
 		return nil, err
 	}
 
-	userAuth, ok := ctx.Value(userAuthKey).(*app.AuthData)
+	userAuth, ok := ctx.Value(_userAuthKey).(*app.AuthData)
 	if !ok || userAuth == nil {
 		return nil, status.Error(codes.Unauthenticated, "auth token missed")
 	}

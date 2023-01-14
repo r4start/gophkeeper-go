@@ -5,7 +5,6 @@ import (
 	"time"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"go.uber.org/zap"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,34 +14,32 @@ import (
 )
 
 const (
-	operationTimeout = time.Second
-
-	userAuthKey    = "UserAuth"
-	expectedScheme = "jwt"
+	_userAuthKey    = "UserAuth"
+	_expectedScheme = "jwt"
 )
 
 type AuthService struct {
 	pb.UnimplementedAuthorizationServiceServer
-	auth   app.Authorizer
-	logger *zap.Logger
+	auth             app.Authorizer
+	operationTimeout time.Duration
 }
 
-func NewAuthService(a app.Authorizer, l *zap.Logger) *AuthService {
+func NewAuthService(a app.Authorizer, operationTimeout time.Duration) *AuthService {
 	return &AuthService{
-		auth:   a,
-		logger: l,
+		auth:             a,
+		operationTimeout: operationTimeout,
 	}
 }
 
-func (s *AuthService) Register(ctx context.Context, r *pb.AuthorizationRequest) (*pb.AuthorizationResponse, error) {
+func (a *AuthService) Register(ctx context.Context, r *pb.AuthorizationRequest) (*pb.AuthorizationResponse, error) {
 	if r.Login == nil || r.Password == nil || len(r.Salt) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "")
 	}
 
-	authCtx, cancel := context.WithTimeout(ctx, operationTimeout)
+	authCtx, cancel := context.WithTimeout(ctx, a.operationTimeout)
 	defer cancel()
 
-	authData, err := s.auth.Register(authCtx, *r.Login, *r.Password, r.Salt)
+	authData, err := a.auth.Register(authCtx, *r.Login, *r.Password, r.Salt)
 	if err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
@@ -53,15 +50,15 @@ func (s *AuthService) Register(ctx context.Context, r *pb.AuthorizationRequest) 
 	}, nil
 }
 
-func (s *AuthService) Authorize(ctx context.Context, r *pb.AuthorizationRequest) (*pb.AuthorizationResponse, error) {
+func (a *AuthService) Authorize(ctx context.Context, r *pb.AuthorizationRequest) (*pb.AuthorizationResponse, error) {
 	if r.Login == nil || r.Password == nil {
 		return nil, status.Error(codes.InvalidArgument, "")
 	}
 
-	authCtx, cancel := context.WithTimeout(ctx, operationTimeout)
+	authCtx, cancel := context.WithTimeout(ctx, a.operationTimeout)
 	defer cancel()
 
-	token, err := s.auth.Authorize(authCtx, *r.Login, *r.Password)
+	token, err := a.auth.Authorize(authCtx, *r.Login, *r.Password)
 	if err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
@@ -72,15 +69,15 @@ func (s *AuthService) Authorize(ctx context.Context, r *pb.AuthorizationRequest)
 	}, nil
 }
 
-func (s *AuthService) AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error) {
+func (a *AuthService) AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error) {
 	// Since AuthService is responsible for authorization we don't need any middleware to check authorization.
 	// Otherwise we won't authorize anybody.
 	return ctx, nil
 }
 
-func BuildAuthorizationInterceptor(a app.Authorizer, l *zap.Logger) grpc_auth.AuthFunc {
+func BuildAuthorizationInterceptor(a app.Authorizer) grpc_auth.AuthFunc {
 	return func(ctx context.Context) (context.Context, error) {
-		token, err := grpc_auth.AuthFromMD(ctx, expectedScheme)
+		token, err := grpc_auth.AuthFromMD(ctx, _expectedScheme)
 		if err != nil {
 			return ctx, status.Error(codes.Unauthenticated, "unauthorized")
 		}
@@ -90,6 +87,6 @@ func BuildAuthorizationInterceptor(a app.Authorizer, l *zap.Logger) grpc_auth.Au
 			return ctx, status.Error(codes.Unauthenticated, "unauthorized")
 		}
 
-		return context.WithValue(ctx, userAuthKey, auth), nil
+		return context.WithValue(ctx, _userAuthKey, auth), nil
 	}
 }

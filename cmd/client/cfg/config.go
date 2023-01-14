@@ -48,8 +48,5 @@ func (c *Config) Save() error {
 	if err != nil {
 		return err
 	}
-
-	err = os.WriteFile(c.filePath, data, 0700)
-
-	return err
+	return os.WriteFile(c.filePath, data, 0700)
 }

@@ -7,8 +7,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	"github.com/grpc-ecosystem/go-grpc-middleware/ratelimit"
 	"github.com/heetch/confita"
 	"github.com/heetch/confita/backend/env"
 	"github.com/heetch/confita/backend/flags"
@@ -27,12 +29,16 @@ import (
 
 type config struct {
 	DatabaseConnectionString string `config:"db_dsn,required"`
+	DatabaseOperationTimeout uint32 `config:"db_timeout"`
 	TokenSignKeyFilePath     string `config:"token_key,required"`
 	GrpcServerAddress        string `config:"grpc_server_address"`
 	GrpcServerBasePort       uint16 `config:"grpc_server_base_port"`
+	GrpcServerRecvSize       int    `config:"grpc_server_recv_size"`
+	GrpcServerSendSize       int    `config:"grpc_server_send_size"`
 	ServeTLS                 bool   `config:"use_tls"`
 	TLSKeyFilePath           string `config:"key_file"`
 	TLSCrtFilePath           string `config:"crt_file"`
+	RPSLimit                 uint32 `config:"rps_limit"`
 }
 
 func main() {
@@ -48,7 +54,11 @@ func main() {
 	}()
 
 	cfg := &config{
-		GrpcServerBasePort: 8090,
+		DatabaseOperationTimeout: 250,
+		GrpcServerBasePort:       8090,
+		GrpcServerRecvSize:       16 * 1024 * 1024, // 16 MiB
+		GrpcServerSendSize:       2 * 1024 * 1024,  // 2 MiB
+		RPSLimit:                 100,
 	}
 	loader := confita.NewLoader(
 		env.NewBackend(),
@@ -79,7 +89,8 @@ func main() {
 		logger.Fatal("failed to read signing key", zap.Error(err))
 	}
 
-	ds, err := storage.NewDatabaseUserService(serverCtx, cfg.DatabaseConnectionString)
+	ds, err := storage.NewDatabaseUserService(serverCtx, cfg.DatabaseConnectionString,
+		time.Duration(cfg.DatabaseOperationTimeout)*time.Millisecond)
 	if err != nil {
 		logger.Fatal("failed to create user storage", zap.Error(err))
 	}
@@ -93,13 +104,16 @@ func main() {
 		logger.Fatal("failed to create authorizer", zap.Error(err))
 	}
 
-	authService := gsrv.NewAuthService(auth, logger)
-	storageService, _ := gsrv.NewStorageService(ds)
-	authFunc := gsrv.BuildAuthorizationInterceptor(auth, logger)
+	authService := gsrv.NewAuthService(auth, time.Duration(cfg.DatabaseOperationTimeout)*time.Millisecond)
+	storageService, _ := gsrv.NewStorageService(ds, cfg.GrpcServerSendSize)
+	authFunc := gsrv.BuildAuthorizationInterceptor(auth)
 
-	grpcServer := grpc.NewServer(grpc.Creds(creds), grpc.MaxRecvMsgSize(16*1024*1024),
+	grpcServer := grpc.NewServer(grpc.Creds(creds), grpc.MaxRecvMsgSize(cfg.GrpcServerRecvSize),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authFunc)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authFunc)))
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authFunc)),
+		grpc.UnaryInterceptor(ratelimit.UnaryServerInterceptor(gsrv.NewLimiter(int(cfg.RPSLimit)))),
+		grpc.StreamInterceptor(ratelimit.StreamServerInterceptor(gsrv.NewLimiter(int(cfg.RPSLimit)))),
+	)
 
 	pb.RegisterAuthorizationServiceServer(grpcServer, authService)
 	pb.RegisterStorageServer(grpcServer, storageService)
