@@ -1,0 +1,14 @@
+name: static check
+on: pull_request
+
+jobs:
+  errcheck:
+    name: errcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - name: check
+        uses: danhunsaker/golang-github-actions@v1.3.0
+        with:
+          run: errcheck
+          token: ${{ secrets.GITHUB_TOKEN }}
